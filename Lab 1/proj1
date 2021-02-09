@@ -1,0 +1,709 @@
+%% Part 1
+
+%% Part 2
+load powercurve_V164 %Saved in P
+%p = 1.225; %air density
+%d = 164;   %rotor diameter
+%h = 105;   %tower height
+
+%{
+Month     - Number of days
+Jan       - 31
+Feb       - 28 (29 in leap years)
+Mar       - 31
+April     - 30
+May       - 31
+June      - 30
+July      - 31
+August    - 31
+September - 30
+October   - 31
+November  - 30
+December  - 31
+%}
+A = [10.6 9.7 9.2 8 7.8 8.1 7.8 8.1 9.1 9.9 10.6 10.6];
+B = [2 2 2 1.9 1.9 1.9 1.9 1.9 2 1.9 2 2];
+days = [31 28 31 30 31 30 31 31 30 31 30 31];
+
+%% 2 a) Standard Monte Carlo
+month = 1;
+for month = 1:1
+    month
+%N = days(month)*24*60*60; %Not necissary, 6000 data point suffice
+N = 6000;
+
+%{
+Optimized version below!!!
+X = zeros(1,N);
+for i = 1:N
+    X(i) = wblrnd(A(month),B(month));
+end
+%}
+
+X = wblrnd(A(month),B(month), N, 1);
+
+% Calculating phi(X)
+phi = P(X);
+
+lambda = 1.96;
+tauN = zeros(1,N);
+I_lower = zeros(1,N);
+I_upper = zeros(1,N);
+for i = 1:N
+    
+    % Estimating tauN
+    tauN(i) = 1/i * sum(phi(1:i));
+    
+    % Estimating confidence interval
+    sigma2phi = var(phi(1:i));
+    I_lower(i) = tauN(i) - lambda*sqrt(sigma2phi/i);
+    I_upper(i) = tauN(i) + lambda*sqrt(sigma2phi/i);
+    
+end
+tauN_final = tauN(end)
+I_width = I_upper(end) - I_lower(end)
+
+end
+
+a = plot(tauN/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+hold on
+b = plot(I_upper/1000, 'Color', '#A2142F');
+c = plot(I_lower/1000, 'Color', '#A2142F');
+hold off
+%legend([a,b,c],'Expected amount of power', 'Upper bound', 'Lower bound')
+legend([a,b],'Expected amount of power', 'Confidence interval')
+
+%{
+I_width, N = 6000
+Jan: 1.8510e+05
+Feb: 1.8124e+05
+Mar: 1.7654e+05
+Apr: 1.6212e+05
+May: 1.5895e+05
+Jun: 1.6250e+05
+Jul: 1.5769e+05
+Aug: 1.6206e+05
+Sep: 1.7520e+05
+Oct: 1.8480e+05
+Nov: 1.8586e+05
+Dec: 1.8647e+05
+
+%}
+
+%% 2 a) TRUNCATED Standard Monte Carlo
+month = 1;
+N = 6000;
+U = rand(1,N);
+a = 3.5;
+b = 25;
+F_X_a = wblcdf( a, A(month), B(month) );
+F_X_b = wblcdf( b, A(month), B(month) );
+
+%F_X = @(x) wblcdf(x, A(month), B(month) );
+%F_X_cond = @(x) (F_X(x) - F_X_a) / (F_X_b - F_X_a);
+
+F_inv_X = @(x) icdf('wbl', x, A(month), B(month));
+F_inv_X_cond = @(x) F_inv_X( x*(F_X_b - F_X_a) + F_X_a );
+
+% F_gen_inv = F_inv_X_cond 
+F_gen_inv = @(x) F_inv_X( x*(F_X_b - F_X_a) + F_X_a );
+
+X = F_gen_inv(U);
+
+% Calculating phi(X)
+phi = P(X);
+
+lambda = 1.96;
+tauN = zeros(1,N);
+I_lower = zeros(1,N);
+I_upper = zeros(1,N);
+p = (F_X_b - F_X_a);
+for i = 1:N
+    
+    % Estimating tauN
+    tauN(i) = 1/i *p*sum(phi(1:i)); %FL 4 slide 27
+    
+    % Estimating confidence interval
+    sigma2phi = p^2.*var(phi(1:i)); %FL4 slide 28
+    I_lower(i) = tauN(i) - lambda*sqrt(sigma2phi/i);
+    I_upper(i) = tauN(i) + lambda*sqrt(sigma2phi/i);
+    
+end
+tauN_final = tauN(end)
+I_width = I_upper(end) - I_lower(end)
+
+%end
+
+a = plot(tauN/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+hold on
+b = plot(I_upper/1000, 'Color', '#A2142F');
+c = plot(I_lower/1000, 'Color', '#A2142F');
+hold off
+%legend([a,b,c],'Expected amount of power', 'Upper bound', 'Lower bound')
+legend([a,b],'Expected amount of power', 'Confidence interval')
+
+%{
+I_width, N = 6000
+Jan: 1.8510e+05
+Feb: 1.8124e+05
+Mar: 1.7654e+05
+Apr: 1.6212e+05
+May: 1.5895e+05
+Jun: 1.6250e+05
+Jul: 1.5769e+05
+Aug: 1.6206e+05
+Sep: 1.7520e+05
+Oct: 1.8480e+05
+Nov: 1.8586e+05
+Dec: 1.8647e+05
+
+%}
+%% 2b) Comparing ϕ(x), pdf f(x) and ϕ(x)*f(x) and determining new instrumental function g(x)
+
+N = 6000;
+xs = linspace(0,30, N);
+
+% Jan, Determining suitable new instrumental function g(x)
+% month = 1;
+% r = 9.555;
+% lambda = 1.35;
+% g = gampdf(xs, r, lambda);
+
+% Feb, Determining suitable new instrumental function g(x)
+month = 2;
+r = 9.9;
+lambda = 1.23;
+g = gampdf(xs, r, lambda);
+
+% Mar, Determining suitable new instrumental function g(x)
+% month = 3;
+% r = 10.1;
+% lambda = 1.15;
+% g = gampdf(xs, r, lambda);
+
+% Apr, Determining suitable new instrumental function g(x)
+% month = 4;
+% r = 10.05;
+% lambda = 1.09;
+% g = gampdf(xs, r, lambda);
+
+% May, Determining suitable new instrumental function g(x)
+% month = 5;
+% r = 10.2;
+% lambda = 1.05;
+% g = gampdf(xs, r, lambda);
+
+% Jun, Determining suitable new instrumental function g(x)
+% month = 6;
+% r = 10.05;
+% lambda = 1.09;
+% g = gampdf(xs, r, lambda);
+
+% Jul, Determining suitable new instrumental function g(x)
+% month = 7;
+% r = 10.2;
+% lambda = 1.05;
+% g = gampdf(xs, r, lambda);
+
+% Aug, Determining suitable new instrumental function g(x)
+% month = 8;
+% r = 10.05;
+% lambda = 1.09;
+% g = gampdf(xs, r, lambda);
+
+% Sep, Determining suitable new instrumental function g(x)
+% month = 9;
+% r = 10.1;
+% lambda = 1.15;
+% g = gampdf(xs, r, lambda);
+
+% Oct, Determining suitable new instrumental function g(x)
+% month = 10;
+% r = 10;
+% lambda = 1.25;
+% g = gampdf(xs, r, lambda);
+
+% Nov, Determining suitable new instrumental function g(x)
+% month = 11;
+% r = 9.555;
+% lambda = 1.35;
+% g = gampdf(xs, r, lambda);
+
+% Dec, Determining suitable new instrumental function g(x)
+% month = 12;
+% r = 9.555;
+% lambda = 1.35;
+% g = gampdf(xs, r, lambda);
+
+% Calculating pdf f(x)
+f = wblpdf(xs, A(month), B(month));
+
+% Calculating objective function ϕ(X)
+phi = P(xs)';
+phi = phi./100000000;
+
+% Calculating ϕ(x)*f(x)
+phif = phi.*f;
+phif = phif.*22;
+
+% Calculating new objective function ϕ(x)*f(x)/g(x)
+% We aim to achieve the ratio ϕ(x)*f(x)/g(x) as constant as possible
+phifg = phi.*f./g;
+
+% Plot
+a = plot(xs, f);
+hold on
+b = plot(xs, phi); 
+c = plot(xs, phif, '--');
+d = plot(xs, g, '--');
+hold off
+legend([a,b,c,d],'PDF, f(x)', 'Scaled old objective function, ϕ(x)', 'ϕ(x)*f(x)', 'Scaled g(x)')
+
+% Plot
+% c = plot(xs, phif, '--');
+% hold on
+% d = plot(xs, g, '--');
+% hold off
+% legend([c,d], 'ϕ(x)*f(x)', 'Scaled g(x)')
+
+figure(2)
+e = plot(xs, phifg);
+legend(e,'ϕ(x)*f(x)/g(x)')
+%% 2b) Importance sampling (IS) Monte Carlo
+N = 6000;
+
+% Jan
+month = 1;
+r = 9.555;
+lamba = 1.35
+X = gamrnd(r, lamba, N, 1); %We now sample from g instead of f
+
+% Feb
+% month = 2;
+% r = 9.9;
+% lambda = 1.23;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Mar
+% month = 3;
+% r = 10.1;
+% lambda = 1.15;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Apr
+% month = 4;
+% r = 10.05;
+% lambda = 1.09;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+
+% May
+% month = 5;
+% r = 10.2;
+% lambda = 1.05;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Jun
+% month = 6;
+% r = 10.05;
+% lambda = 1.09;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Jul
+% month = 7;
+% r = 10.2;
+% lambda = 1.05;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Aug
+% month = 8;
+% r = 10.05;
+% lambda = 1.09;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Sep
+% month = 9;
+% r = 10.1;
+% lambda = 1.15;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Oct
+% r = 10;
+% lambda = 1.25;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Nov
+% month = 11;
+% r = 9.555;
+% lambda = 1.35;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+% Dec
+% month = 12;
+% r = 9.555;
+% lambda = 1.35;
+% X = gamrnd(r, lambda, N, 1); %We now sample from g instead of f
+
+
+% Calculating ϕ(X)
+phi = P(X);
+
+% Calcualting w(X)
+f = wblpdf(X, A(month), B(month));
+g = gampdf(X, r, lambda);
+w = f./g;
+
+% Calculations and convergence plot
+lambda = 1.96;
+tauN_IS = zeros(1,N);
+I_lower_IS = zeros(1,N);
+I_upper_IS = zeros(1,N);
+for i = 1:N
+    
+    phiw = phi(1:i).*w(1:i);
+    
+    % Estimating Expected Value of tauN
+    tauN_IS(i) = 1/i * sum( phiw );
+    
+    % Estimating confidence interval
+    sigma2phiw = var(phiw);
+    I_lower_IS(i) = tauN_IS(i) - lambda*sqrt(sigma2phiw/i);
+    I_upper_IS(i) = tauN_IS(i) + lambda*sqrt(sigma2phiw/i);
+    
+end
+
+tauN_final = tauN_IS(end)
+I_width = I_upper_IS(end) - I_lower_IS(end)
+
+% a = plot(tauN/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+% hold on
+% b = plot(I_upper/1000, 'Color', '#A2142F');
+% c = plot(I_lower/1000, 'Color', '#A2142F');
+d = plot(tauN_IS/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+hold on
+e = plot(I_upper_IS/1000, 'Color', '#A2142F');
+f = plot(I_lower_IS/1000, 'Color', '#A2142F');
+hold off
+%legend([a,b,c],'Expected amount of power', 'Upper bound', 'Lower bound')
+legend([d,e],'Expected amount of power', 'Confidence interval')
+
+% Jan, N = 6000
+% I_width standard MC:  1.8510e+05
+% I_width IS MC:        2.6671e+04
+% Width of confidence interval has decreased!
+
+% Feb, N = 6000
+% I_width standard MC:  1.8124e+05
+% I_width IS MC:        2.0592e+04
+% Width of confidence interval has decreased!
+
+% Mar, N = 6000
+% I_width standard MC:  1.7654e+05
+% I_width IS MC:        2.1381e+04
+% Width of confidence interval has decreased!
+
+% Apr
+% I_width standard MC:  1.6212e+05
+% I_width IS MC:        1.4646e+04
+% Width of confidence interval has decreased!
+
+% May, N = 6000
+% I_width standard MC:  1.5895e+05
+% I_width IS MC:        1.6118e+04
+% Width of confidence interval has decreased!
+
+% Jun, N = 6000
+% I_width standard MC:  1.6250e+05
+% I_width IS MC:        1.6913e+04
+% Width of confidence interval has decreased!
+
+% Jul, N = 6000
+% I_width standard MC:  1.5769e+05
+% I_width IS MC:        1.4773e+04
+% Width of confidence interval has decreased!
+
+% Aug, N = 6000
+% I_width standard MC:  1.6206e+05
+% I_width IS MC:        1.5706e+04
+% Width of confidence interval has decreased!
+
+% Sep, N = 6000
+% I_width standard MC:  1.7520e+05
+% I_width IS MC:        1.8950e+04
+% Width of confidence interval has decreased!
+
+% Oct, N = 6000
+% I_width standard MC:  1.8480e+05
+% I_width IS MC:        1.9788e+04
+% Width of confidence interval has decreased!
+
+% Nov, N = 6000
+% I_width standard MC:  1.8586e+05
+% I_width IS MC:        2.6129e+04
+% Width of confidence interval has decreased!
+
+% Dec, N = 6000
+% I_width standard MC:  1.8647e+05
+% I_width IS MC:        2.5251e+04
+% Width of confidence interval has decreased!
+
+%% 2 c) Antithetic sampling
+%{
+The power curve P(v) is monotonously increasing over the interval (3.5, 14) and constant over (14, 25). Use this for
+reducing the variance of the estimator in (a) via antithetic sampling. Construct a new 95% confidence interval using
+the robustified estimator and compare it to the ones obtained in (a) and (b).
+%}
+
+    month = 1;
+    month
+    N = 6000;
+    
+    
+    X = wblrnd(A(month),B(month), N, 1);
+    X_anti = X(1:3000); %For a fair comparison with standard MC we use half the number
+    % of samples as we have to generate 2 series of data for this version
+    
+    %Normal MC
+    % Calculating phi(X)
+    phi = P(X);
+
+    lambda = 1.96;
+    tauN = zeros(1,N);
+    I_lower = zeros(1,N);
+    I_upper = zeros(1,N);
+for i = 1:N
+    
+    % Estimating tauN
+    tauN(i) = 1/i * sum(phi(1:i));
+    
+    % Estimating confidence interval
+    sigma2phi = var(phi(1:i));
+    I_lower(i) = tauN(i) - lambda*sqrt(sigma2phi/i);
+    I_upper(i) = tauN(i) + lambda*sqrt(sigma2phi/i);
+    
+end
+    tauN_final = tauN(end)
+    I_width = I_upper(end) - I_lower(end)
+
+figure(1)
+a = plot(tauN/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+hold on
+b = plot(I_upper/1000, 'Color', '#A2142F');
+c = plot(I_lower/1000, 'Color', '#A2142F');
+hold off
+%legend([a,b,c],'Expected amount of power', 'Upper bound', 'Lower bound')
+legend([a,b],'Expected amount of power', 'Confidence interval')
+
+
+
+% Antithetic sampling
+% Calculating phi(X)
+phi_anti = P(X_anti);
+phi_anti_bar = P(X_anti_bar);
+
+% Calculating W
+W = (phi_anti+phi_anti_bar)/2;
+
+lambda = 1.96;
+tauN = zeros(1,N/2);
+I_lower = zeros(1,N/2);
+I_upper = zeros(1,N/2);
+for i = 1:N/2
+    
+    % Estimating tauN
+    tauN(i) = 1/i * sum(W(1:i));
+    
+    % Estimating confidence interval
+    data_corr = corr(phi_anti, phi_anti_bar);
+    sigma2phi = 1/2 * ( var(phi_anti(1:i)) + data_corr);
+    I_lower(i) = tauN(i) - lambda*sqrt(sigma2phi/i);
+    I_upper(i) = tauN(i) + lambda*sqrt(sigma2phi/i);
+    
+end
+    tauN_final = tauN(end)
+    I_width = I_upper(end) - I_lower(end)
+
+figure(1)
+a = plot(tauN/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+hold on
+b = plot(I_upper/1000, 'Color', '#A2142F');
+c = plot(I_lower/1000, 'Color', '#A2142F');
+hold off
+%legend([a,b,c],'Expected amount of power', 'Upper bound', 'Lower bound')
+legend([a,b],'Expected amount of power', 'Confidence interval')
+
+
+% %% 2 d)
+% N = 6000;
+% Prob_power = zeros(1,12);
+% 
+% for month = 1:12
+%     X = wblrnd(A(month),B(month), N, 1);
+% 
+%     % Calculating phi(X)
+%     phi = P(X);
+%     nmr_non_zeros = nnz(phi);
+%     Prob_power(month) = 5000/N
+% end
+
+%% 2 d)
+%{
+P[P(v) > 0] = P[3.5<v<25] = F(25) - F(3.5)
+%}
+prob_power = zeros(1,12);
+for month = 1:12
+    F_X_a = wblcdf( 3.5, A(month), B(month) );
+    F_X_b = wblcdf( 25, A(month), B(month) );
+    prob_power(month) =  F_X_b - F_X_a
+end
+
+%% 2 e)
+d = 165;
+h = 105;
+p = 1.225; %air density at sea level
+P_total = @(v) (1/2)*p*pi*(d^2)*(v^3)/4; % total wind power
+
+power_actual = zeros(1,12);
+power_total = zeros(1,12);
+power_coefficient = zeros(1,12);
+for month = 1:12
+[M,V] = wblstat(A(month), B(month));
+power_total(month) = P_total(M);
+power_actual(month) = prob_power(month)*power_total(month);
+power_coefficient(month) = power_actual(month)/power_total(month)
+
+end
+
+%% 2 f)
+capacity_factor = tauN(end)/(9.5*10^6)
+%{
+Capacity factor
+
+Availability factor
+0.8929    0.8766    0.8646    0.8121    0.8039    0.8160    0.8039    0.8160    0.8620    0.8675    0.8929    0.8929
+All less than 90% -> not good
+%}
+%% 3 a) Comparing ϕ(x), pdf f(x) and ϕ(x)*f(x) and determining new instrumental function g(x)
+N = 6000;
+xs = linspace(0,30, N);
+
+% Determining suitable new instrumental function g(x)
+% --------------------
+% r = 9.8;
+% lambda = 1.25;
+% g = gampdf(xs, r, lambda);
+% OR ------------------
+% r = 9.9;
+% lambda = 1.23;
+% g = gampdf(xs, r, lambda);
+%---------------------------
+% r = 12.8;
+% lambda = 4.2;
+% g = normpdf(xs, r, lambda);
+
+
+% Calculating pdf f(x)
+lambda = 9.13;
+k = 1.96;
+f = wblpdf(xs, lambda, k);
+
+% Calculating objective function ϕ(X)
+phi = P(xs)';
+phi = phi./100000000;
+
+% Calculating ϕ(x)*f(x)
+phif = phi.*f;
+phif = phif.*20;
+
+
+% u = 13;
+% sigma = 4;
+% u = 12.3;
+% sigma = 4.8;
+% g = normpdf(xs, u, sigma);
+
+% MU = 4;
+% SIGMA = 2;
+% g = lognpdf(xs,MU,SIGMA);
+
+% lambda = 18;
+% k = 3;
+% g = wblpdf(xs, lambda, k);
+
+% r = 8.8;
+% lambda = 1.5;
+% g = gampdf(xs, r, lambda);
+
+% r = 9.85;
+% lambda = 1.3;
+% g = gampdf(xs, r, lambda);
+
+% r = 9.4;
+% lambda = 1.4;
+% g = gampdf(xs, r, lambda);
+
+
+
+
+% Calculating new objective function ϕ(x)*f(x)/g(x)
+% We aim to achieve the ratio ϕ(x)*f(x)/g(x) as constant as possible
+phifg = phi.*f./g;
+
+% Plot
+%a = plot(xs, f);
+hold on
+%b = plot(xs, phi); 
+c = plot(xs, phif, '--');
+d = plot(xs, g, '--');
+hold off
+legend([c,d],'PDF, f(x)', 'Scaled old objective function, ϕ(x)', 'ϕ(x)*f(x)', 'Scaled g(x)')
+
+figure(2)
+e = plot(xs, phifg);
+legend(e,'ϕ(x)*f(x)/g(x)')
+
+%% 3 a) Importance sampling (IS) Monte Carlo
+lambda = 9.13;
+k = 1.96;
+
+
+
+month = 1;
+N = 6000;
+X = gamrnd(9.555,1.35, N, 1); %We now sample from g instead of f
+
+% Calculating ϕ(X)
+phi = P(X);
+
+% Calcualting w(X)
+f = wblpdf(X, A(month), B(month));
+g = gampdf(X, 9.555, 1.35);
+w = f./g;
+
+lambda = 1.96;
+tauN = zeros(1,N);
+I_lower = zeros(1,N);
+I_upper = zeros(1,N);
+for i = 1:N
+    
+    phiw = phi(1:i).*w(1:i);
+    
+    % Estimating tauN
+    tauN(i) = 1/i * sum( phiw );
+    
+    % Estimating confidence interval
+    sigma2phiw = var(phiw);
+    I_lower(i) = tauN(i) - lambda*sqrt(sigma2phiw/i);
+    I_upper(i) = tauN(i) + lambda*sqrt(sigma2phiw/i);
+    
+end
+
+I_width = I_upper(end) - I_lower(end) % 6.0486e+04
+
+a = plot(tauN/1000); title('Power curve for Vestas V164 (9.5 MW)'), ylabel('Power (kW)'), xlabel('Time (seconds)');
+hold on
+b = plot(I_upper/1000, 'Color', '#A2142F');
+c = plot(I_lower/1000, 'Color', '#A2142F');
+hold off
+%legend([a,b,c],'Expected amount of power', 'Upper bound', 'Lower bound')
+legend([a,b],'Expected amount of power', 'Confidence interval')
