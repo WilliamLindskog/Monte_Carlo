@@ -18,8 +18,7 @@ n = length(data);
 samples = 2000;
 
 % USE SAMPLES TO GENERATE NECESSARY PARAMETERS
-significance_lvl = 0.05; 
-[alpha, alpha2, beta_array, mu_array, delta] = generate_parameters(samples, significance_lvl);
+[beta_array, mu_array, delta] = generate_parameters(samples);
 
 % CALCULATING DELTA USING GUMBEL DIST. TO ESTIMATE BETA AND MU(LOOP)
 for i = 1:samples
@@ -40,22 +39,24 @@ for i = 1:samples
     delta(i,:) = [beta_mean - beta_est, mu_mean - beta_est];
 end
 
-% SORT DELTA FOR COMPARISON PURPOSES
+% SORT DELTA FOR COMPARISON PURPOSES AND SET ALPHA
 delta = sort(delta);
+alpha = 0.05;
 
 % CALCULATE CONFIDENCE BETA AND MU INTERVALS USING BOOTSTRAP METHOD
-confidence_interval = zeros(3,2);
-confidence_interval(1,:) = beta_mean + [delta(floor(alpha)), delta(ceil(alpha2))];
-confidence_interval(2,:) = mu_mean + [delta(floor(alpha)), delta(ceil(alpha2))];
+CI_beta = zeros(2,1);
+CI_beta(1) =  beta_mean - delta(ceil((1-alpha/2)*samples));
+CI_beta(2) =  beta_mean - delta(ceil((alpha/2)*samples));
+
+CI_mu = zeros(2,1);
+CI_mu(1) =  mu_mean - delta(ceil((1-alpha/2)*samples));
+CI_mu(2) =  mu_mean - delta(ceil((alpha/2)*samples));
 
 
 %% 2c) ONE-SIDED PARAMETRIC BOOTSTRAPPED 95% CONFIDENCE INTERVAL FOR THE 100-YEAR RETURN VALUE
 
 % OBSERVATIONS 
 T = 3*14*100;
-
-% ONE-SIDED ALPHA
-one_side_alpha = 0.95*samples;
 
 % SET WAVES IN ARRAY 
 wave_array = zeros(samples, 1); 
@@ -76,13 +77,20 @@ wave_delta = wave_mean - wave_array;
 wave_delta = sort(wave_delta);
 
 % CONFIDENCE INTERVAL
-confidence_interval(3,:) =[0, mean_wave + deltaWave(ceil(alpha5))]; % Conf wave
+alpha = 0.05;
+one_side_CI = zeros(2,1);
+one_side_CI =[0, wave_mean + wave_delta(ceil((1-alpha)*samples))]; 
 
-% PLOT
+% PLOT 1
+figure()
+subplot(2,1,1)
 x = linspace(0,1,582);
-plot(x,drawWave);
-figure(2)
-plot(1:582,atlantic);
+plot(x, wave);
+title('Subplot 1: Simulated wave');
+
+subplot(2,1,2)
+plot(1:582, data);
+title('Subplot 2: Atlantic
 
 
 
