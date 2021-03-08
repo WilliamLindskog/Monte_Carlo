@@ -1,3 +1,0 @@
-function [alpha, alpha2, beta_array, mu_array, delta] = generate_parameters(samples, significance_lvl)
-    alpha = significance_lvl*sam
-end

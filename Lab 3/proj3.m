@@ -3,10 +3,6 @@
 % CLEAR PREVIOUS EXERCISES
 clear
 
-% SET SEED
-SEED = 69;
-random_nbr_generator = rng(SEED);
-
 % LOAD TEXT FILE
 data = load('atlantic.txt');
 
@@ -53,6 +49,8 @@ CI_mu(1) =  mu_mean - delta(ceil((1-alpha/2)*samples));
 CI_mu(2) =  mu_mean - delta(ceil((alpha/2)*samples));
 
 
+
+
 %% 2c) ONE-SIDED PARAMETRIC BOOTSTRAPPED 95% CONFIDENCE INTERVAL FOR THE 100-YEAR RETURN VALUE
 
 % OBSERVATIONS 
@@ -93,4 +91,16 @@ plot(1:582, data);
 title('Subplot 2: Atlantic wave data');
 
 
+% FUNCTIONS 
 
+% GENERATE NECESSARY PARAMETERS
+function [beta_array, mu_array, delta] = generate_parameters(samples, significance_lvl)
+    beta_array = zeros(samples, 1);
+    mu_array = zeros(samples, 1);
+    delta = zeros(samples, 2); 
+end
+
+% THIS FUNCTION CALCULATES THE INVERSE OF F
+function F_inverse = F_inverse_question_2(u, beta, mu)
+    F_inverse = mu + beta*log(1./(log(1./u)));
+end
